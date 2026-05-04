@@ -1,0 +1,150 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  name      String
+  role      UserRole @default(AGENT)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  agent Agent?
+}
+
+enum UserRole {
+  ADMIN
+  MANAGER
+  AGENT
+  READONLY
+}
+
+model Agent {
+  id                     String   @id @default(uuid())
+  userId                 String   @unique
+  user                   User     @relation(fields: [userId], references: [id])
+  expertiseAreas         String[]
+  avgResponseTimeMinutes Int?
+  ticketsResolvedCount   Int      @default(0)
+  csatScore              Float?
+  isActive               Boolean  @default(true)
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  tickets Ticket[]
+}
+
+model Customer {
+  id            String    @id @default(uuid())
+  email         String    @unique
+  companyName   String?
+  healthScore   Int       @default(50)
+  totalTickets  Int       @default(0)
+  avgSentiment  Float?
+  createdAt     DateTime  @default(now())
+  lastContactAt DateTime?
+  updatedAt     DateTime  @updatedAt
+
+  tickets Ticket[]
+}
+
+model Ticket {
+  id              String         @id @default(uuid())
+  ticketNumber    String         @unique
+  customerId      String
+  customer        Customer       @relation(fields: [customerId], references: [id])
+  subject         String
+  description     String
+  status          TicketStatus   @default(OPEN)
+  priority        TicketPriority @default(MEDIUM)
+  category        TicketCategory?
+  sentimentScore  Float?
+  assignedTo      String?
+  agent           Agent?         @relation(fields: [assignedTo], references: [id])
+  createdAt       DateTime       @default(now())
+  firstResponseAt DateTime?
+  resolvedAt      DateTime?
+  closedAt        DateTime?
+  source          TicketSource   @default(EMAIL)
+  tags            String[]
+  metadata        Json?
+  updatedAt       DateTime       @updatedAt
+
+  messages TicketMessage[]
+
+  @@index([customerId])
+  @@index([assignedTo])
+  @@index([createdAt(sort: Desc)])
+  @@index([status])
+  @@index([category])
+}
+
+enum TicketStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+}
+
+enum TicketPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum TicketCategory {
+  BUG_REPORT
+  FEATURE_REQUEST
+  HOW_TO_QUESTION
+  BILLING_ISSUE
+  COMPLAINT
+  OTHER
+}
+
+enum TicketSource {
+  EMAIL
+  CHAT
+  PHONE
+  API
+}
+
+model TicketMessage {
+  id             String            @id @default(uuid())
+  ticketId       String
+  ticket         Ticket            @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  senderType     MessageSenderType
+  senderId       String?
+  messageText    String
+  sentimentScore Float?
+  isAiGenerated  Boolean           @default(false)
+  createdAt      DateTime          @default(now())
+
+  @@index([ticketId])
+}
+
+enum MessageSenderType {
+  CUSTOMER
+  AGENT
+  SYSTEM
+}
+
+model AnalyticsCache {
+  id          Int      @id @default(autoincrement())
+  metricName  String
+  timePeriod  String
+  dateValue   DateTime @db.Date
+  metricValue Json
+  createdAt   DateTime @default(now())
+
+  @@unique([metricName, timePeriod, dateValue])
+  @@index([metricName, dateValue])
+}
